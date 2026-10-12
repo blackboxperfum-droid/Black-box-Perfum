@@ -1068,6 +1068,8 @@ $('modal-clave').classList.remove('visible');toast('✅ Contraseña cambiada');}
 .withFailureHandler(function(){b.disabled=false;toast('⚠️ Error de conexión');}).adminCambiarMiClave(token,a,n);};
 function autoAct(){clearInterval(autoTimer);autoTimer=setInterval(function(){
 if(!token||document.querySelector('.modal.visible'))return;
+// Si estás escribiendo o eligiendo algo, no se actualiza (redibujar borraría lo que llevas)
+var ae=document.activeElement;if(ae&&/^(INPUT|SELECT|TEXTAREA)$/.test(ae.tagName))return;
 var a=document.querySelector('.tab.activo'),tv=a?a.getAttribute('data-v'):'';
 if(tv==='ajustes')return;recargarSilencioso();},25000);}
 
@@ -1293,10 +1295,11 @@ return '<tr>'+filaCli(p)+'<td><b>'+p.articulos+'</b></td><td>'+pagoPill(p.pago)+
 :'<tr><td colspan="8" class="sub">No hay pedidos por empacar. 🙌</td></tr>';
 $('emp-espera').innerHTML=esp.length?'<p class="ayuda" style="margin:14px 0 0">⏳ <b>'+esp.length+' pedido(s) nuevo(s) esperan que Cartera los apruebe.</b> Aparecerán aquí cuando aprueben el pago (pagado, contra entrega o crédito).</p>':'';
 var opT=trs.map(function(x){return x.n;});
-$('tabla-despacho').innerHTML=des.length?des.map(function(p,i){var l=opT.slice();if(p.transportadora&&l.indexOf(p.transportadora)<0)l.push(p.transportadora);
+$('tabla-despacho').innerHTML=des.length?des.map(function(p,i){var l=opT.slice(),bo=BORR[p.numero]||{};
+var tSel=bo.t!==undefined?bo.t:(p.transportadora||''),gVal=bo.g!==undefined?bo.g:(p.guia||'');if(tSel&&l.indexOf(tSel)<0)l.push(tSel);
 return '<tr>'+filaCli(p)+'<td>'+pagoPill(p.pago)+'</td>'
-+'<td><select class="sel-in" id="dt-'+i+'"'+(pd?'':' disabled')+'><option value="">Elegir…</option>'+l.map(function(n){return '<option'+(n===p.transportadora?' selected':'')+'>'+esc(n)+'</option>';}).join('')+'</select></td>'
-+'<td><input type="text" class="sel-in" id="dg-'+i+'" value="'+esc(p.guia||'')+'" placeholder="N° de guía" maxlength="40" spellcheck="false"'+(pd?'':' disabled')+'></td>'
++'<td><select class="sel-in" id="dt-'+i+'"'+(pd?'':' disabled')+' onchange="borr(this,\''+jsq(p.numero)+'\',\'t\')"><option value="">Elegir…</option>'+l.map(function(n){return '<option'+(n===tSel?' selected':'')+'>'+esc(n)+'</option>';}).join('')+'</select></td>'
++'<td><input type="text" class="sel-in" id="dg-'+i+'" value="'+esc(gVal)+'" placeholder="N° de guía" maxlength="40" spellcheck="false" autocomplete="off" inputmode="text"'+(pd?'':' disabled')+' oninput="borr(this,\''+jsq(p.numero)+'\',\'g\')"></td>'
 +'<td>'+btnVer(p)+'</td><td>'+(pd?'<button class="btn-mini verde" onclick="despachar(\''+jsq(p.numero)+'\','+i+',this)">🚚 Despachar</button>':'')+'</td></tr>';}).join('')
 :'<tr><td colspan="8" class="sub">No hay pedidos empacados esperando despacho.</td></tr>';
 $('tabla-encamino').innerHTML=cam.length?cam.map(function(p){var tr=trs.find(function(x){return x.n===p.transportadora;})||{};
@@ -1306,6 +1309,9 @@ return '<tr>'+filaCli(p)+'<td>'+esc(p.transportadora||'—')+(p.guia?'<br><span 
 +'<td>'+pagoPill(p.pago)+'</td><td><span class="dias '+(d>=5?'rojo':(d>=3?'ambar':''))+'">'+d+' d</span></td><td>'+btnVer(p)+'</td>'
 +'<td>'+(pt?'<button class="btn-mini verde" onclick="marcarEntregado(\''+jsq(p.numero)+'\',this)">✓ Entregado</button>':'')+'</td></tr>';}).join('')
 :'<tr><td colspan="8" class="sub">No hay envíos en camino.</td></tr>';}
+// Borradores de Despacho por número de pedido (transportadora t y guía g)
+var BORR={};
+window.borr=function(el,num,k){(BORR[num]=BORR[num]||{})[k]=el.value;};
 // Cambio rápido de un pedido sin abrir el detalle: se conservan los demás campos tal cual
 function accionRapida(num,cam,msg,btn){var p=(DATOS.pedidos||[]).find(function(x){return x.numero===num;});if(!p)return;
 var c={estado:p.estado,pago:p.pago,transportadora:p.transportadora||'',guia:p.guia||'',notaInterna:p.notaInterna||''};for(var k in cam)c[k]=cam[k];
@@ -1322,7 +1328,7 @@ toast(r.aviso?'⚠️ '+r.aviso:msg);renderModulos();renderPedidos();renderResum
 window.marcarEmpacado=function(num,b){accionRapida(num,{estado:'EMPACADO'},'✅ '+num+' empacado · pasa a Despacho',b);};
 window.despachar=function(num,i,b){var t=$('dt-'+i).value,g=$('dg-'+i).value.trim();if(!t)return toast('Elige la transportadora');
 if(!g&&!confirm('¿Despachar '+num+' sin número de guía?'))return;
-accionRapida(num,{estado:'ENVIADO',transportadora:t,guia:g},'🚚 '+num+' despachado. Avísale al cliente desde "Ver"',b);};
+delete BORR[num];accionRapida(num,{estado:'ENVIADO',transportadora:t,guia:g},'🚚 '+num+' despachado. Avísale al cliente desde "Ver"',b);};
 window.marcarEntregado=function(num,b){if(!confirm('¿Confirmas que '+num+' ya fue entregado al cliente?'))return;
 accionRapida(num,{estado:'ENTREGADO'},'✅ '+num+' entregado',b);};
 
